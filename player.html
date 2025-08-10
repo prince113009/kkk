@@ -1,1 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Video Player with Live Auto Subtitles</title>
+  <style>
+    body {
+      background: #000;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      height: 100vh;
+      margin: 0;
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+    video {
+      max-width: 90vw;
+      max-height: 50vh;
+      border-radius: 8px;
+      background: black;
+    }
+    input, button {
+      margin: 10px 0;
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 5px;
+      border: none;
+      width: 90vw;
+      max-width: 600px;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      cursor: pointer;
+    }
+    #subtitles {
+      margin-top: 10px;
+      font-size: 20px;
+      min-height: 40px;
+      width: 90vw;
+      max-width: 600px;
+      text-align: center;
+      background: rgba(0,0,0,0.6);
+      padding: 10px;
+      border-radius: 8px;
+      font-weight: bold;
+      user-select: none;
+    }
+  </style>
+</head>
+<body>
+
+<h2>Video Player with Live Auto Subtitles</h2>
+
+<input id="videoUrl" type="text" placeholder="Paste MP4 or M3U8 video URL here" />
+<button onclick="playVideo()">Play Video</button>
+
+<video id="videoPlayer" controls crossorigin="anonymous" preload="auto"></video>
+
+<div id="subtitles">Subtitles will appear here...</div>
+
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<script>
+  const video = document.getElementById('videoPlayer');
+  const subtitles = document.getElementById('subtitles');
+  let hls;
+  let recognition;
+
+  function playVideo() {
+    const url = document.getElementById('videoUrl').value.trim();
+    if (!url) {
+      alert('Please enter a video URL');
+      return;
+    }
+
+    if (hls) {
+      hls.destroy();
+      hls = null;
+    }
+    subtitles.textContent = "Starting subtitle recognition...";
+
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+
+    if (recognition) {
+      recognition.stop();
+      recognition = null;
+    }
+
+    if (url.endsWith('.m3u8') && Hls.isSupported()) {
+      hls = new Hls();
+      hls.loadSource(url);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, function () {
+        video.play();
+        startSpeechRecognition();
+      });
+    } else if (video.canPlayType('video/mp4')) {
+      video.src = url;
+      video.play();
+      video.onplay = () => startSpeechRecognition();
+    } else {
+      alert('Unsupported video format or browser does not support playback');
+      subtitles.textContent = '';
+    }
+  }
+
+  function startSpeechRecognition() {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      subtitles.textContent = 'Speech Recognition API not supported in this browser.';
+      return;
+    }
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognition = new SpeechRecognition();
+
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onresult = (event) => {
+      let transcript = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        transcript += event.results[i][0].transcript;
+      }
+      subtitles.textContent = transcript;
+    };
+
+    recognition.onerror = (event) => {
+      console.error('Speech recognition error:', event.error);
+      subtitles.textContent = `Speech recognition error: ${event.error}`;
+    };
+
+    recognition.onend = () => {
+      // Auto-restart recognition while video is playing
+      if (!video.paused && !video.ended) {
+        recognition.start();
+      }
+    };
+
+    recognition.start();
+  }
+</script>
+
+</body>
+</html>
 
